@@ -199,6 +199,17 @@ export class SettingsTab extends PluginSettingTab {
             });
 
         new Setting(containerEl)
+            .setName('Set done date as file link')
+            .setDesc(SettingsTab.createFragmentWithHTML('Format done date like ✅ [[YYYY-MM-DD]]</br>'))
+            .addToggle((toggle) => {
+                const settings = getSettings();
+                toggle.setValue(settings.setDoneDateAsLink).onChange(async (value) => {
+                    updateSettings({ setDoneDateAsLink: value });
+                    await this.plugin.saveSettings();
+                });
+            });
+
+        new Setting(containerEl)
             .setName('Set cancelled date on every cancelled task')
             .setDesc(
                 SettingsTab.createFragmentWithHTML(

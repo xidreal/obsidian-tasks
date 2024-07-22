@@ -4,6 +4,7 @@ import { Occurrence, Recurrence } from '../Task/Recurrence';
 import { Task } from '../Task/Task';
 import { Priority } from '../Task/Priority';
 import { TaskRegularExpressions } from '../Task/TaskRegularExpressions';
+import { getSettings } from '../Config/Settings';
 import type { TaskDetails, TaskSerializer } from '.';
 
 /* Interface describing the symbols that {@link DefaultTaskSerializer}
@@ -38,6 +39,7 @@ export interface DefaultTaskSerializerSymbols {
         scheduledDateRegex: RegExp;
         dueDateRegex: RegExp;
         doneDateRegex: RegExp;
+        doneDateAsLinkRegex: RegExp;
         cancelledDateRegex: RegExp;
         recurrenceRegex: RegExp;
         idRegex: RegExp;
@@ -84,6 +86,7 @@ export const DEFAULT_SYMBOLS: DefaultTaskSerializerSymbols = {
         scheduledDateRegex: /[⏳⌛] *(\d{4}-\d{2}-\d{2})$/u,
         dueDateRegex: /[📅📆🗓] *(\d{4}-\d{2}-\d{2})$/u,
         doneDateRegex: /✅ *(\d{4}-\d{2}-\d{2})$/u,
+        doneDateAsLinkRegex: /✅ *\[\[(\d{4}-\d{2}-\d{2})\]\]$/u,
         cancelledDateRegex: /❌ *(\d{4}-\d{2}-\d{2})$/u,
         recurrenceRegex: /🔁 ?([a-zA-Z0-9, !]+)$/iu,
         dependsOnRegex: new RegExp('⛔\uFE0F? *(' + taskIdSequenceRegex.source + ')$', 'iu'),
@@ -96,12 +99,16 @@ function symbolAndStringValue(shortMode: boolean, symbol: string, value: string)
     return shortMode ? ' ' + symbol : ` ${symbol} ${value}`;
 }
 
-function symbolAndDateValue(shortMode: boolean, symbol: string, date: moment.Moment | null) {
+function symbolAndDateValue(shortMode: boolean, symbol: string, date: moment.Moment | null, linkable = false) {
     if (!date) return '';
     // We could call symbolAndStringValue() to remove a little code repetition,
     // but doing so would do some wasted date-formatting when in 'short mode',
     // so instead we repeat the check on shortMode value.
-    return shortMode ? ' ' + symbol : ` ${symbol} ${date.format(TaskRegularExpressions.dateFormat)}`;
+    let formattedDate = date.format(TaskRegularExpressions.dateFormat);
+    if (linkable) {
+        formattedDate = '[[' + formattedDate + ']]';
+    }
+    return shortMode ? ' ' + symbol : ` ${symbol} ${formattedDate}`;
 }
 
 export function allTaskPluginEmojis() {
@@ -188,7 +195,7 @@ export class DefaultTaskSerializer implements TaskSerializer {
                 if (task.scheduledDateIsInferred) return '';
                 return symbolAndDateValue(shortMode, scheduledDateSymbol, task.scheduledDate);
             case TaskLayoutComponent.DoneDate:
-                return symbolAndDateValue(shortMode, doneDateSymbol, task.doneDate);
+                return symbolAndDateValue(shortMode, doneDateSymbol, task.doneDate, getSettings().setDoneDateAsLink);
             case TaskLayoutComponent.CancelledDate:
                 return symbolAndDateValue(shortMode, cancelledDateSymbol, task.cancelledDate);
             case TaskLayoutComponent.DueDate:
@@ -278,10 +285,14 @@ export class DefaultTaskSerializer implements TaskSerializer {
                 matched = true;
             }
 
-            const doneDateMatch = line.match(TaskFormatRegularExpressions.doneDateRegex);
+            const doneDateRegex = getSettings().setDoneDateAsLink
+                ? TaskFormatRegularExpressions.doneDateAsLinkRegex
+                : TaskFormatRegularExpressions.doneDateRegex;
+            const doneDateMatch = line.match(doneDateRegex);
+
             if (doneDateMatch !== null) {
                 doneDate = window.moment(doneDateMatch[1], TaskRegularExpressions.dateFormat);
-                line = line.replace(TaskFormatRegularExpressions.doneDateRegex, '').trim();
+                line = line.replace(doneDateRegex, '').trim();
                 matched = true;
             }
 
